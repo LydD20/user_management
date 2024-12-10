@@ -11,11 +11,11 @@ ENV PYTHONUNBUFFERED=1 \
 
 WORKDIR /myapp
 
-# Update system and specifically upgrade libc-bin to the required security patch version
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Update system and specifically install libc-bin to the required security patch version
+RUN apt-get update && apt-get install -y --no-install-recommends --allow-downgrades \
     gcc \
     libpq-dev \
-    libc-bin=2.36-9+deb12u7 --allow-downgrades \
+    libc-bin=2.36-9+deb12u9 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -29,15 +29,18 @@ RUN python -m venv /.venv \
 # Define a second stage for the runtime, using the same Debian Bookworm slim image
 FROM python:3.12-slim-bookworm as final
 
-# Upgrade libc-bin in the final stage to ensure security patch is applied
-RUN apt-get update && apt-get install -y libc-bin=2.36-9+deb12u7 \
+# Update libc-bin to ensure consistency with the base stage
+RUN apt-get update && apt-get install -y --no-install-recommends --allow-downgrades \
+    gcc \
+    libpq-dev \
+    libc-bin=2.36-9+deb12u9 \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy the virtual environment from the base stage
 COPY --from=base /.venv /.venv
 
-# Set environment variable to ensure all python commands run inside the virtual environment
+# Set environment variable to ensure all Python commands run inside the virtual environment
 ENV PATH="/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1 \
     PYTHONFAULTHANDLER=1 \
