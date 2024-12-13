@@ -83,44 +83,54 @@ class UserService:
         except ValidationError as e:
             logger.error(f"Validation error during user creation: {e}")
             return None
-
     @classmethod
-    async def update(cls, session: AsyncSession,email_id, user_id: UUID, update_data: Dict[str, str]) -> Optional[User]:
+    async def update(
+        cls, session: AsyncSession, email_id: str, user_id: UUID, update_data: Dict[str, str]
+    ) -> Optional[User]:
         try:
-            # validated_data = UserUpdate(**update_data).dict(exclude_unset=True)
             validated_data = UserUpdate(**update_data).model_dump(exclude_unset=True)
 
-            if email_id:
-                existing_data = await cls.get_by_email(session,email_id)
-                print(f'existing data{existing_data}')
-                if existing_data and existing_data.id != user_id:
-                    return 'email_exist'
+        # Check for duplicate email
+        if email_id:
+            existing_data = await cls.get_by_email(session, email_id)
+            print(f'existing data: {existing_data}')
+            if existing_data and existing_data.id != user_id:
+                logger.error("User with given email already exists.")
+                return {"detail": "Email exists already.", "status": 409}
 
-            if 'password' in validated_data:
-                validated_data['hashed_password'] = hash_password(validated_data.pop('password'))
-            query = update(User).where(User.id == user_id).values(**validated_data).execution_options(synchronize_session="fetch")
-            await cls._execute_query(session, query)
-            updated_user = await cls.get_by_id(session, user_id)
-            if updated_user:
-                session.refresh(updated_user)  # Explicitly refresh the updated user object
-                logger.info(f"User {user_id} updated successfully.")
-                return updated_user
-            else:
-                logger.error(f"User {user_id} not found after update attempt.")
-            return None
-        except Exception as e:  # Broad exception handling for debugging
-            logger.error(f"Error during user update: {e}")
-            return None
+        # Update password if provided
+        if "password" in validated_data:
+            validated_data["hashed_password"] = hash_password(validated_data.pop("password"))
 
-    @classmethod
-    async def delete(cls, session: AsyncSession, user_id: UUID) -> bool:
-        user = await cls.get_by_id(session, user_id)
-        if not user:
-            logger.info(f"User with ID {user_id} not found.")
-            return False
-        await session.delete(user)
-        await session.commit()
-        return True
+        # Execute update query
+        query = (
+            update(User)
+            .where(User.id == user_id)
+            .values(**validated_data)
+            .execution_options(synchronize_session="fetch")
+        )
+        await cls._execute_query(session, query)
+
+        # Refresh and return the updated user
+        updated_user = await cls.get_by_id(session, user_id)
+        if updated_user:
+            session.refresh(updated_user)
+            logger.info(f"User {user_id} updated successfully.")
+            return updated_user
+        else:
+            logger.error(f"User {user_id} not found after update attempt.")
+        # Refresh and return the updated user
+        updated_user = await cls.get_by_id(session, user_id)
+        if updated_user:
+            session.refresh(updated_user)
+            logger.info(f"User {user_id} updated successfully.")
+            return updated_user
+        else:
+            logger.error(f"User {user_id} not found after update attempt.")
+            return None
+    except Exception as e:
+        logger.error(f"Error during user update: {e}")
+        return None
 
     @classmethod
     async def list_users(cls, session: AsyncSession, skip: int = 0, limit: int = 10) -> List[User]:
