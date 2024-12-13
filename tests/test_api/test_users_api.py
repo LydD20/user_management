@@ -208,13 +208,13 @@ async def test_update_user_email_access_allowed(async_client, admin_user, admin_
 @pytest.mark.asyncio
 async def test_update_professional_status_not_allowed(async_client, admin_user, user_token):
     headers = {"Authorization": f"Bearer {user_token}"}
-    response = await async_client.patch(f"/users/{admin_user.id}/upgrade", headers=headers)
+    response = await async_client.patch(f"/users/{admin_user.id}/updateToProfessional",  headers=headers)
     assert response.status_code == 403
 
 @pytest.mark.asyncio
 async def test_update_user_self_update_not_allowed(async_client):
     updated_data = {"first_name": "Test", "last_name": "User"}
-    response = await async_client.put("/users/updateMyProfile", json=updated_data)
+    response = await async_client.put("/users/updateProfile", json=updated_data)
     assert response.status_code == 401
 
 @pytest.mark.asyncio
@@ -232,7 +232,7 @@ async def test_update_user_self_update_forbidden(async_client, verified_user, ve
     assert login_response.status_code == 200
     token = login_response.json().get('access_token')
     headers = {"Authorization": f"Bearer {token}"}
-    response = await async_client.put("/users/updateMyProfile", json=updated_data, headers=headers)
+    response = await async_client.put("/users/updateProfile", json=updated_data, headers=headers)
     assert response.status_code == 403
 
 @pytest.mark.asyncio
