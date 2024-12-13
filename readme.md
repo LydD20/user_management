@@ -4,10 +4,10 @@
 ## New Feature: User Profile Management
 Added a user profile management feature that does the following:
 - Designed and implemented a feature that enables users to seamlessly update profile details, including name, bio, and location, through an intuitive and flexible API.
-API endpoint: /users/updateProfile
+  API endpoint: /users/updateProfile
 
 - Developed a robust functionality that permits managers and administrators to elevate a user's status to "professional."
-API Endpoint: /users/{user_id}/updateToProfessional
+  API Endpoint: /users/{user_id}/updateToProfessional
 
 - Introduced an automated email notification system to inform users when their status is upgraded to "professional," ensuring they are promptly notified of changes.
 
@@ -17,19 +17,19 @@ ANONYMOUS UserRole and None showing in email verification link
 [Fixed Issue 1 Linked Here](https://github.com/LydD20/user_management/issues/1)
 
 ### Issue 2
-Issue with building Docker Container due to libr code
+Issue with building Docker Container due to libr code 
 [Fixed Issue 2 Linked Here](https://github.com/LydD20/user_management/issues/2)
 
 ### Issue 3
-Issue with Github Actions not working, no workflow running
+Issue with Github Actions not working, no workflow running 
 [Fixed Issue 3 Linked Here](https://github.com/LydD20/user_management/issues/3)
 
 ### Issue 4
-There was no password validation which is considered a security issue
+There was no password validation which is considered a security issue 
 [Fixed Issue 4 Linked Here](https://github.com/LydD20/user_management/issues/4)
 
 ### Issue 5
-Found a vulnerability in requirements.txt with python-multipart
+Found a vulnerability in requirements.txt with python-multipart 
 [Fixed Issue 4 Linked Here](https://github.com/LydD20/user_management/issues/5)
 
 ## 10 New Tests
