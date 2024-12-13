@@ -197,7 +197,8 @@ async def test_update_user_email_access_Not_allowed_test2(async_client, admin_us
     headers = {"Authorization": f"Bearer {admin_token}"}
     response = await async_client.put(f"/users/{admin_user.id}", json=updated_data, headers=headers)
     response = await async_client.put(f"/users/{verified_user.id}", json=updated_data, headers=headers)
-    assert "email already exist" in response.json().get("detail", "")
+    assert response.status_code == 409, f"Unexpected status code: {response.status_code}, response: {response.json()}"
+    assert "Email exists already." in response.json().get("detail", ""), f"Unexpected response: {response.json()}"
 
 @pytest.mark.asyncio
 async def test_update_user_email_access_allowed_test3(async_client, admin_user, verified_user, admin_token):
