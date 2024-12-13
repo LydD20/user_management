@@ -35,6 +35,8 @@ class EmailService:
             "verification_url": verification_url,
             "email": user.email
         }, 'email_verification')
+
+
         async def send_professional_upgrade_email(self ,user_email):
             subject = "Congratulations on Your New Professional Status!"
             body = "Dear user, your profile has been upgraded to professional status. Enjoy the new benefits!"
