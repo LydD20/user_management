@@ -40,8 +40,5 @@ https://github.com/LydD20/user_management/commit/7425674b6595424bcfeac0300d80ef5
 https://github.com/LydD20/user_management/commit/5ec7a0af6ebc00a5c42ab6265c4b241f95fa698d
 https://github.com/LydD20/user_management/commit/0a1afe57f04d0cb47ed09a531fd9a510226f8752
 
-## Reflection
-[Final Reflection Paper.docx](https://github.com/user-attachments/files/18127243/Final.Reflection.Paper.docx)
-
 ## Docker Repository
 https://hub.docker.com/repository/docker/lydiadaids/user_management/general
