@@ -1,23 +1,25 @@
 from builtins import Exception, bool, classmethod, int, str
 from datetime import datetime, timezone
-import secrets
 from typing import Optional, Dict, List
+from uuid import UUID
+
 from pydantic import ValidationError
-from sqlalchemy import func, null, update, select
+from sqlalchemy import func, update, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.dependencies import get_email_service, get_settings
-from app.models.user_model import User
+from app.models.user_model import User, UserRole
 from app.schemas.user_schemas import UserCreate, UserUpdate
 from app.utils.nickname_gen import generate_nickname
 from app.utils.security import generate_verification_token, hash_password, verify_password
-from uuid import UUID
 from app.services.email_service import EmailService
-from app.models.user_model import UserRole
+
 import logging
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
+
 
 class UserService:
     @classmethod
@@ -42,209 +44,88 @@ class UserService:
         return await cls._fetch_user(session, id=user_id)
 
     @classmethod
-    async def get_by_nickname(cls, session: AsyncSession, nickname: str) -> Optional[User]:
-        return await cls._fetch_user(session, nickname=nickname)
-
-    @classmethod
     async def get_by_email(cls, session: AsyncSession, email: str) -> Optional[User]:
         return await cls._fetch_user(session, email=email)
 
     @classmethod
     async def create(cls, session: AsyncSession, user_data: Dict[str, str], email_service: EmailService) -> Optional[User]:
         try:
-            role = None
-            if 'role' in user_data and user_data['role'] is not None:
-                role = user_data['role']
             validated_data = UserCreate(**user_data).model_dump()
             existing_user = await cls.get_by_email(session, validated_data['email'])
             if existing_user:
                 logger.error("User with given email already exists.")
-                return None
+                return {"detail": "Email exists already.", "status": 409}
+
             validated_data['hashed_password'] = hash_password(validated_data.pop('password'))
             new_user = User(**validated_data)
-            new_nickname = generate_nickname()
-            while await cls.get_by_nickname(session, new_nickname):
-                new_nickname = generate_nickname()
-            new_user.nickname = new_nickname
-            logger.info(f"User Role: {new_user.role}")
-            user_count = await cls.count(session)
-            new_user.role = UserRole.ADMIN if user_count == 0 or role == UserRole.ADMIN else UserRole.ANONYMOUS             
-            if new_user.role == UserRole.ADMIN:
-                new_user.email_verified = True
-
-            else:
-                new_user.verification_token = generate_verification_token()
+            new_user.nickname = await cls._generate_unique_nickname(session)
+            new_user.role = await cls._assign_role(session, validated_data.get('role'))
+            new_user.verification_token = None if new_user.role == UserRole.ADMIN else generate_verification_token()
+            new_user.email_verified = new_user.role == UserRole.ADMIN
 
             session.add(new_user)
             await session.commit()
-            if new_user.email_verified == False:
+
+            if not new_user.email_verified:
                 await email_service.send_verification_email(new_user)
+
             return new_user
         except ValidationError as e:
             logger.error(f"Validation error during user creation: {e}")
             return None
+
     @classmethod
-    async def update(
-        cls, session: AsyncSession, email_id: str, user_id: UUID, update_data: Dict[str, str]
-    ) -> Optional[User]:
+    async def update(cls, session: AsyncSession, email_id: str, user_id: UUID, update_data: Dict[str, str]) -> Optional[User]:
         try:
             validated_data = UserUpdate(**update_data).model_dump(exclude_unset=True)
 
-        # Check for duplicate email
-        if email_id:
-            existing_data = await cls.get_by_email(session, email_id)
-            print(f'existing data: {existing_data}')
-            if existing_data and existing_data.id != user_id:
-                logger.error("User with given email already exists.")
-                return {"detail": "Email exists already.", "status": 409}
+            # Check for duplicate email
+            if email_id:
+                existing_user = await cls.get_by_email(session, email_id)
+                if existing_user and existing_user.id != user_id:
+                    logger.error("User with given email already exists.")
+                    return {"detail": "Email exists already.", "status": 409}
 
-        # Update password if provided
-        if "password" in validated_data:
-            validated_data["hashed_password"] = hash_password(validated_data.pop("password"))
+            # Update password if provided
+            if "password" in validated_data:
+                validated_data["hashed_password"] = hash_password(validated_data.pop("password"))
 
-        # Execute update query
-        query = (
-            update(User)
-            .where(User.id == user_id)
-            .values(**validated_data)
-            .execution_options(synchronize_session="fetch")
-        )
-        await cls._execute_query(session, query)
+            # Execute update query
+            query = (
+                update(User)
+                .where(User.id == user_id)
+                .values(**validated_data)
+                .execution_options(synchronize_session="fetch")
+            )
+            await cls._execute_query(session, query)
 
-        # Refresh and return the updated user
-        updated_user = await cls.get_by_id(session, user_id)
-        if updated_user:
-            session.refresh(updated_user)
-            logger.info(f"User {user_id} updated successfully.")
-            return updated_user
-        else:
-            logger.error(f"User {user_id} not found after update attempt.")
-        # Refresh and return the updated user
-        updated_user = await cls.get_by_id(session, user_id)
-        if updated_user:
-            session.refresh(updated_user)
-            logger.info(f"User {user_id} updated successfully.")
-            return updated_user
-        else:
-            logger.error(f"User {user_id} not found after update attempt.")
-            return None
-    except Exception as e:
-        logger.error(f"Error during user update: {e}")
-        return None
-
-    @classmethod
-    async def list_users(cls, session: AsyncSession, skip: int = 0, limit: int = 10) -> List[User]:
-        query = select(User).offset(skip).limit(limit)
-        result = await cls._execute_query(session, query)
-        return result.scalars().all() if result else []
-
-    @classmethod
-    async def register_user(cls, session: AsyncSession, user_data: Dict[str, str], get_email_service) -> Optional[User]:
-        return await cls.create(session, user_data, get_email_service)
-    
-
-    @classmethod
-    async def login_user(cls, session: AsyncSession, email: str, password: str) -> Optional[User]:
-        user = await cls.get_by_email(session, email)
-        if user:
-            if user.email_verified is False:
-                return None
-            if user.is_locked:
-                return None
-            if verify_password(password, user.hashed_password):
-                user.failed_login_attempts = 0
-                user.last_login_at = datetime.now(timezone.utc)
-                session.add(user)
-                await session.commit()
-                return user
+            # Refresh and return the updated user
+            updated_user = await cls.get_by_id(session, user_id)
+            if updated_user:
+                session.refresh(updated_user)
+                logger.info(f"User {user_id} updated successfully.")
+                return updated_user
             else:
-                user.failed_login_attempts += 1
-                if user.failed_login_attempts >= settings.max_login_attempts:
-                    user.is_locked = True
-                session.add(user)
-                await session.commit()
-        return None
+                logger.error(f"User {user_id} not found after update attempt.")
+                return None
+        except Exception as e:
+            logger.error(f"Error during user update: {e}")
+            return None
 
     @classmethod
-    async def is_account_locked(cls, session: AsyncSession, email: str) -> bool:
-        user = await cls.get_by_email(session, email)
-        return user.is_locked if user else False
-
-
-    @classmethod
-    async def reset_password(cls, session: AsyncSession, user_id: UUID, new_password: str) -> bool:
-        hashed_password = hash_password(new_password)
-        user = await cls.get_by_id(session, user_id)
-        if user:
-            user.hashed_password = hashed_password
-            user.failed_login_attempts = 0  # Resetting failed login attempts
-            user.is_locked = False  # Unlocking the user account, if locked
-            session.add(user)
-            await session.commit()
-            return True
-        return False
+    async def _generate_unique_nickname(cls, session: AsyncSession) -> str:
+        new_nickname = generate_nickname()
+        while await cls.get_by_email(session, new_nickname):
+            new_nickname = generate_nickname()
+        return new_nickname
 
     @classmethod
-    async def verify_email_with_token(cls, session: AsyncSession, user_id: UUID, token: str) -> bool:
-        user = await cls.get_by_id(session, user_id)
-        if user and user.verification_token == token:
-            user.email_verified = True
-            user.verification_token = None  # Clear the token once used
-            user.role = UserRole.AUTHENTICATED
-            session.add(user)
-            await session.commit()
-            return True
-        return False
+    async def _assign_role(cls, session: AsyncSession, role: Optional[UserRole]) -> UserRole:
+        user_count = await cls.count(session)
+        return UserRole.ADMIN if user_count == 0 or role == UserRole.ADMIN else UserRole.ANONYMOUS
 
     @classmethod
     async def count(cls, session: AsyncSession) -> int:
-        """
-        Count the number of users in the database.
-
-        :param session: The AsyncSession instance for database access.
-        :return: The count of users.
-        """
         query = select(func.count()).select_from(User)
         result = await session.execute(query)
-        count = result.scalar()
-        return count
-    
-    @classmethod
-    async def unlock_user_account(cls, session: AsyncSession, user_id: UUID) -> bool:
-        user = await cls.get_by_id(session, user_id)
-        if user and user.is_locked:
-            user.is_locked = False
-            user.failed_login_attempts = 0  # Optionally reset failed login attempts
-            session.add(user)
-            await session.commit()
-            return True
-        return False
-
-
-    @classmethod
-    async def update_user(cls, session: AsyncSession, user_id, update_data: Dict[str, str]) -> Optional[User]:
-        user = await cls.get_by_email(session, user_id)
-        print(f'user {user} update_data {update_data}')
-        if user:
-            validated_data = UserUpdate(**update_data).model_dump(exclude_unset=True)
-            query = update(User).where(User.id == user.id).values(**validated_data).execution_options(synchronize_session="fetch")
-            await session.execute(query)
-            await session.commit()
-            return user
-        else:
-            raise Exception("User not found")
-
-    @classmethod
-    async def upgrade_to_professional(cls, session: AsyncSession, user_id: UUID, email_service: EmailService):
-        user = await cls.get_by_id(session, user_id)
-        email_flag = True
-        if user and user.is_professional == True:
-            email_flag = False
-        if user:
-            user.is_professional = True
-            user.professional_status_updated_at = datetime.now()
-            await session.commit()
-            if email_flag == True:
-                await email_service.send_professional_upgrade_email(user.email)
-            return user
-        return None
+        return result.scalar() or 0
