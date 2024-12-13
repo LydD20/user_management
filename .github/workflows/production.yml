@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: [3.10] # Compatible Python versions
+        python-version: [3.10.12] # Define Python versions here
     services:
       postgres:
         image: postgres:latest
@@ -22,12 +22,8 @@ jobs:
           POSTGRES_PASSWORD: password
           POSTGRES_DB: myappdb
         ports:
-          - 5433:5432
-        options: >
-          --health-cmd='pg_isready -U user' 
-          --health-interval=10s 
-          --health-timeout=5s 
-          --health-retries=5
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
     steps:
       - uses: actions/checkout@v4
       
@@ -51,22 +47,23 @@ jobs:
           
       - name: Run tests with Pytest
         env:
-          DATABASE_URL: postgresql+asyncpg://user:password@localhost:5433/myappdb
+          DATABASE_URL: postgresql+asyncpg://user:password@localhost:5432/myappdb  # Configure the DATABASE_URL environment variable for tests
           SMTP_SERVER: sandbox.smtp.mailtrap.io
           SMTP_PORT: 2525
-          SMTP_USERNAME: ${{ secrets.SMTP_USERNAME }}
-          SMTP_PASSWORD: ${{ secrets.SMTP_PASSWORD }}
+          SMTP_USERNAME: 0fc14bda0bcb0a
+          SMTP_PASSWORD: f2a07e13b70d8c
         run: pytest
 
   build-and-push-docker:
     needs: test
     runs-on: ubuntu-latest
-    environment: production
+    environment: env
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.ref || github.ref }}
       
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -80,18 +77,18 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
-          context: .
+          context: .  # Use the current directory as the context
           push: true
-          tags: lydiadaids/user_management:${{ github.sha }}
-          platforms: linux/amd64,linux/arm64
+          tags: lydiadaids/user_management:${{ github.sha }} # Uses the Git SHA for tagging
+          platforms: linux/amd64,linux/arm64 # Multi-platform support
           cache-from: type=registry,ref=lydiadaids/user_management:cache
           cache-to: type=inline,mode=max
           
       - name: Scan the Docker image
-        uses: aquasecurity/trivy-action@v0.12.0
+        uses: aquasecurity/trivy-action@master
         with:
           image-ref: 'lydiadaids/user_management:${{ github.sha }}'
           format: 'table'
-          exit-code: '1'
+          exit-code: '1' # Fail the job if vulnerabilities are found
           ignore-unfixed: true
           severity: 'CRITICAL,HIGH'
