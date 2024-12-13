@@ -65,6 +65,7 @@ class UserBase(BaseModel):
 class UserCreate(UserBase):
     email: EmailStr = Field(..., example="john.doe@example.com")
     password: str = Field(..., example="Secure*1234")
+    role: UserRole = Field(default=UserRole.AUTHENTICATED, example="AUTHENTICATED")
 
 class UserUpdate(UserBase):
     email: Optional[EmailStr] = Field(None, example="john.doe@example.com")
