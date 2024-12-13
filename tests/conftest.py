@@ -238,3 +238,8 @@ def email_service():
         mock_service.send_verification_email.return_value = None
         mock_service.send_user_email.return_value = None
         return mock_service
+
+@pytest.fixture(scope="function")
+def verified_token(verified_user):
+    token_data = {"sub": str(verified_user.id), "role": verified_user.role.name}
+    return create_access_token(data=token_data, expires_delta=timedelta(minutes=30))

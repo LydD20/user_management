@@ -139,3 +139,14 @@ async def test_update_user_role(db_session: AsyncSession, user: User):
     await db_session.commit()
     await db_session.refresh(user)
     assert user.role == UserRole.ADMIN, "Role update should persist correctly in the database"
+
+@pytest.mark.asyncio
+async def test_email_verification(db_session: AsyncSession, user: User):
+    """
+    Test that the email verification function correctly updates the user's status.
+    """
+    assert not user.email_verified, "Email should not be verified initially."
+    user.verify_email()
+    await db_session.commit()
+    await db_session.refresh(user)
+    assert user.email_verified, "Email verified after calling verify_email()."
