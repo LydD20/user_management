@@ -2,6 +2,7 @@ from builtins import Exception, dict, str
 from fastapi import Depends, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
+from app.models.user_model import User
 from app.database import Database
 from app.utils.template_manager import TemplateManager
 from app.services.email_service import EmailService
