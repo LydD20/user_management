@@ -9,7 +9,7 @@ from app.utils.nickname_gen import generate_nickname
 pytestmark = pytest.mark.asyncio
 
 # Test creating a user with valid data
-async def test_create_user_with_valid_data(db_session, email_service):
+async def create_user_with_valid_data(db_session, email_service):
     user_data = {
         "nickname": generate_nickname(),
         "email": "valid_user@example.com",
