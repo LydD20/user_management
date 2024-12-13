@@ -48,6 +48,10 @@ jobs:
       - name: Run tests with Pytest
         env:
           DATABASE_URL: postgresql+asyncpg://user:password@localhost:5432/myappdb  # Configure the DATABASE_URL environment variable for tests
+          SMTP_SERVER: sandbox.smtp.mailtrap.io
+          SMTP_PORT: 2525
+          SMTP_USERNAME: 0fc14bda0bcb0a
+          SMTP_PASSWORD: f2a07e13b70d8c
         run: pytest
 
   build-and-push-docker:
@@ -73,6 +77,7 @@ jobs:
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
+          context: .
           push: true
           tags: lydiadaids/user_management:${{ github.sha }} # Uses the Git SHA for tagging
           platforms: linux/amd64,linux/arm64 # Multi-platform support
