@@ -23,8 +23,8 @@ jobs:
           POSTGRES_DB: myappdb
         ports:
           - 5432:5432
-        options: > 
-          --health-cmd="pg_isready -U user" 
+        options: >
+          --health-cmd='pg_isready -U user' 
           --health-interval=10s 
           --health-timeout=5s 
           --health-retries=5
@@ -88,7 +88,7 @@ jobs:
           cache-to: type=inline,mode=max
           
       - name: Scan the Docker image
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@v0.12.0
         with:
           image-ref: 'lydiadaids/user_management:${{ github.sha }}'
           format: 'table'
